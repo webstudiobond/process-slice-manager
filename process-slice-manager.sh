@@ -30,13 +30,15 @@ log() {
 # Convert memory value to bytes
 convert_memory_limit() {
     local limit="$1"
-    local value="${limit//[!0-9]/}"
-    local unit="${limit//[0-9]/}"
+    local value="${limit//[!0-9]/}" # Extract numeric value
+    local unit="${limit//[0-9]/}"  # Extract unit
     case "${unit^^}" in
         "K") echo $((value * 1024)) ;;
         "M") echo $((value * 1024 * 1024)) ;;
         "G") echo $((value * 1024 * 1024 * 1024)) ;;
-        *) echo "$value" ;;
+        "T") echo $((value * 1024 * 1024 * 1024 * 1024)) ;;
+        "") echo "$value" ;; # If no unit, assume bytes
+        *) echo "Invalid unit: $unit" >&2; return 1 ;; # Error handling for invalid units
     esac
 }
 
