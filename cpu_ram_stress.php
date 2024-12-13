@@ -7,12 +7,13 @@ class SystemLoadTest {
     private $isRunning = false;
     private $memoryData = [];
     private $targetMemory;
-    private $cpuTarget = 90; // 90% CPU target
-    private const TOTAL_MEMORY = 15 * 1024 * 1024 * 1024; // 15GB in bytes
+    private $cpuTarget;
+    private $totalMemory;
 
-    public function __construct() {
-        // Set target to 60% of 15GB
-        $this->targetMemory = self::TOTAL_MEMORY * 0.6;
+    public function __construct($cpuTarget = 90, $memoryPercentage = 60, $totalMemoryGB = 15) {
+        $this->cpuTarget = max(1, min(100, (int)$cpuTarget));
+        $this->totalMemory = $totalMemoryGB * 1024 * 1024 * 1024; // Convert GB to bytes
+        $this->targetMemory = $this->totalMemory * ($memoryPercentage / 100);
         // Set PHP memory limit slightly higher to prevent crashes
         ini_set('memory_limit', ceil(($this->targetMemory * 1.1) / (1024 * 1024)) . 'M');
     }
@@ -24,20 +25,12 @@ class SystemLoadTest {
         
         try {
             $this->log("Test started - Target memory: " . $this->formatBytes($this->targetMemory));
-            
-            // Initial memory allocation
             $this->initialMemoryAllocation();
             
             while ($this->isRunning) {
                 $startTime = microtime(true);
-                
-                // CPU Load - 90% usage through precise timing
                 $this->cpuWork($startTime);
-                
-                // Only adjust memory if needed
                 $this->maintainMemory();
-                
-                // Report status
                 $this->reportStatus();
                 
                 if (connection_aborted()) {
@@ -57,11 +50,7 @@ class SystemLoadTest {
         $chunkSize = 10 * 1024 * 1024; // 10MB chunks
         while (memory_get_usage(true) < $this->targetMemory) {
             $this->memoryData[] = str_repeat('A', $chunkSize);
-            
-            // Report progress during initial allocation
             $this->reportStatus();
-            
-            // Small delay to prevent overwhelming the system
             usleep(10000);
         }
     }
@@ -71,25 +60,23 @@ class SystemLoadTest {
         $tolerance = 0.02 * $this->targetMemory; // 2% tolerance
 
         if ($currentUsage < ($this->targetMemory - $tolerance)) {
-            // Add a small amount if we're below target
             $this->memoryData[] = str_repeat('A', 1024 * 1024); // 1MB
         } elseif ($currentUsage > ($this->targetMemory + $tolerance)) {
-            // Remove data if we're above target
             array_pop($this->memoryData);
         }
     }
 
     private function cpuWork($startTime) {
-        // Work for 90ms
-        $endWork = $startTime + 0.09;
+        // Calculate work duration based on CPU target percentage
+        $workDuration = ($this->cpuTarget / 100) * 0.1; // Scale to 100ms cycle
+        $endWork = $startTime + $workDuration;
+        
         while (microtime(true) < $endWork) {
-            // More intensive CPU operations for 90% load
             for ($i = 0; $i < 2000; $i++) {
                 $x = sin($i) * cos($i) * tan($i) * sqrt($i);
             }
         }
         
-        // Sleep for 10ms to maintain 90% CPU
         $sleepUntil = $startTime + 0.1; // 100ms total cycle
         $remainingSleep = ($sleepUntil - microtime(true)) * 1000000;
         if ($remainingSleep > 0) {
@@ -103,7 +90,8 @@ class SystemLoadTest {
             "status" => "running",
             "memory_usage" => $this->formatBytes($currentMemory),
             "memory_target" => $this->formatBytes($this->targetMemory),
-            "memory_percentage" => round(($currentMemory / self::TOTAL_MEMORY) * 100, 2),
+            "memory_percentage" => round(($currentMemory / $this->totalMemory) * 100, 2),
+            "cpu_target" => $this->cpuTarget,
             "timestamp" => date('Y-m-d H:i:s')
         ];
         
@@ -132,8 +120,12 @@ class SystemLoadTest {
 }
 
 if (isset($_POST['action'])) {
-    $test = new SystemLoadTest();
     if ($_POST['action'] === 'start') {
+        $cpuTarget = isset($_POST['cpuTarget']) ? (int)$_POST['cpuTarget'] : 90;
+        $memoryPercentage = isset($_POST['memoryPercentage']) ? (int)$_POST['memoryPercentage'] : 60;
+        $totalMemoryGB = isset($_POST['totalMemoryGB']) ? (float)$_POST['totalMemoryGB'] : 15;
+        
+        $test = new SystemLoadTest($cpuTarget, $memoryPercentage, $totalMemoryGB);
         $test->start();
     }
     exit;
@@ -143,10 +135,11 @@ if (isset($_POST['action'])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>System Load Test (90% CPU / 60% RAM)</title>
+    <title>System Load Test (Configurable CPU/RAM)</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
         .button { padding: 10px 20px; margin: 10px; cursor: pointer; border: none; border-radius: 4px; }
+        .button:disabled { opacity: 0.5; cursor: not-allowed; }
         .start { background: #4CAF50; color: white; }
         .stop { background: #f44336; color: white; }
         #status { margin: 20px 0; padding: 10px; border: 1px solid #ddd; }
@@ -162,10 +155,42 @@ if (isset($_POST['action'])) {
         }
         .error { color: #f44336; }
         .info { color: #2196F3; }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: inline-block;
+            width: 150px;
+            margin-right: 10px;
+        }
+        .input-group input {
+            padding: 5px;
+            width: 100px;
+        }
     </style>
 </head>
 <body>
-    <h1>System Load Test (90% CPU / 60% RAM)</h1>
+    <h1>System Load Test (Configurable CPU/RAM)</h1>
+    <div class="controls">
+        <div class="input-group">
+            <label for="cpuTarget">CPU Target (%):</label>
+            <input type="number" id="cpuTarget" min="1" max="100" value="90">
+        </div>
+        <div class="input-group">
+            <label for="memoryPercentage">Memory Target (%):</label>
+            <input type="number" id="memoryPercentage" min="1" max="90" value="60">
+        </div>
+        <div class="input-group">
+            <label for="totalMemoryGB">Total Memory (GB):</label>
+            <input type="number" id="totalMemoryGB" min="1" max="128" value="15" step="0.5">
+        </div>
+    </div>
     <div>
         <button class="button start" onclick="startTest()">Start Test</button>
         <button class="button stop" onclick="stopTest()">Stop Test</button>
@@ -191,6 +216,14 @@ if (isset($_POST['action'])) {
                 return;
             }
 
+            // Disable inputs and start button
+            document.querySelectorAll('.controls input').forEach(input => input.disabled = true);
+            document.querySelector('.button.start').disabled = true;
+
+            const cpuTarget = document.getElementById('cpuTarget').value;
+            const memoryPercentage = document.getElementById('memoryPercentage').value;
+            const totalMemoryGB = document.getElementById('totalMemoryGB').value;
+
             document.getElementById('status').textContent = 'Status: Starting...';
             logToConsole('Starting system load test...');
             
@@ -199,7 +232,7 @@ if (isset($_POST['action'])) {
                 const response = await fetch('', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'action=start',
+                    body: `action=start&cpuTarget=${cpuTarget}&memoryPercentage=${memoryPercentage}&totalMemoryGB=${totalMemoryGB}`,
                     signal: abortController.signal
                 });
 
@@ -223,8 +256,8 @@ if (isset($_POST['action'])) {
                                 logToConsole(data.message);
                             } else if (data.status === 'running') {
                                 document.getElementById('status').textContent = 
-                                    `Memory: ${data.memory_usage} / ${data.memory_target} (${data.memory_percentage}%)`;
-                                logToConsole(`Memory Usage: ${data.memory_percentage}%`);
+                                    `Memory: ${data.memory_usage} / ${data.memory_target} (${data.memory_percentage}%) | CPU Target: ${data.cpu_target}%`;
+                                logToConsole(`Memory Usage: ${data.memory_percentage}% | CPU Target: ${data.cpu_target}%`);
                             }
                         } catch (e) {
                             logToConsole(`Parse error: ${line}`, true);
@@ -237,6 +270,11 @@ if (isset($_POST['action'])) {
                 } else {
                     logToConsole(`Error: ${error.message}`, true);
                 }
+            } finally {
+                // Re-enable inputs and start button when done
+                document.querySelectorAll('.controls input').forEach(input => input.disabled = false);
+                document.querySelector('.button.start').disabled = false;
+                abortController = null;
             }
         }
 
@@ -246,6 +284,10 @@ if (isset($_POST['action'])) {
                 abortController = null;
                 logToConsole('Stopping test...');
                 document.getElementById('status').textContent = 'Status: Stopping...';
+                
+                // Re-enable inputs and start button
+                document.querySelectorAll('.controls input').forEach(input => input.disabled = false);
+                document.querySelector('.button.start').disabled = false;
             }
         }
     </script>
