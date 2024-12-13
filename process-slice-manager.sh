@@ -153,6 +153,7 @@ case "$1" in
         [[ -f "$PIDFILE" ]] && { log "ERROR" "Service already running"; exit 1; }
         echo $$ > "$PIDFILE"
         trap cleanup SIGINT SIGTERM
+        trap 'load_user_data' SIGHUP
         load_user_data
         monitor_resources
         ;;
