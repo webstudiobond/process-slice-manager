@@ -6,6 +6,7 @@ LOG_FILE="/var/log/process-slice-manager.log"
 CGROUP_CPU="/sys/fs/cgroup/cpu"
 CGROUP_MEMORY="/sys/fs/cgroup/memory"
 POLL_INTERVAL=2
+UNLIMITED_BYTES=$((1024 * 1024 * 1024 * 1024))
 
 # Declare associative arrays
 declare -A USER_DATA
@@ -92,8 +93,8 @@ setup_cgroup_slices() {
             log "INFO" "Setting memory limit for $package - Memory: $mem_bytes bytes"
             echo "$mem_bytes" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set memory limit for $package"
         else
-            log "INFO" "Setting unlimited memory for $package - Memory: 9223372036854771712 bytes"
-            echo "9223372036854771712" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set unlimited memory for $package"
+            log "INFO" "Setting unlimited memory for $package - Memory: $UNLIMITED_BYTES bytes"
+            echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set unlimited memory for $package"
         fi
 
         if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
@@ -103,8 +104,8 @@ setup_cgroup_slices() {
             log "INFO" "Setting swap limit for $package - Total (Memory + Swap): $total_bytes bytes"
             echo "$total_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
         elif [[ "$mem_limit" != "unlimited" || "$swap_limit" != "unlimited" ]]; then
-            log "INFO" "Setting unlimited swap for $package - Total: 9223372036854771712 bytes"
-            echo "9223372036854771712" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
+            log "INFO" "Setting unlimited swap for $package - Total: $UNLIMITED_BYTES bytes"
+            echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
         fi
     done
     log "INFO" "Cgroup slices setup completed"
