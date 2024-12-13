@@ -60,35 +60,51 @@ setup_cgroup_slices() {
         local swap_limit
         swap_limit=$(echo "$data" | jq -r '.SWAP_LIMIT')
 
+        log "INFO" "Package: $package - Initial values - CPU Quota: $cpu_quota, CPU Period: $cpu_period, Memory: $mem_limit, Swap: $swap_limit"
+
         PACKAGE_DATA["$package"]="$cpu_quota:$cpu_period:$mem_limit:$swap_limit"
 
         # Create CPU cgroup slice
-                cpu_period=${cpu_period//ms/}
-                cpu_quota=${cpu_quota//%/}
-        if [[ -n "$cpu_quota" && -n "$cpu_period" ]]; then
-            local cpu_slice_dir="$CGROUP_CPU/$package"
-            mkdir -p "$cpu_slice_dir" || { log "ERROR" "Failed to create CPU slice for $package"; continue; }
+        local cpu_slice_dir="$CGROUP_CPU/$package"
+        mkdir -p "$cpu_slice_dir" || { log "ERROR" "Failed to create CPU slice for $package"; continue; }
+        
+        if [[ "$cpu_quota" != "unlimited" && "$cpu_period" != "unlimited" ]]; then
+            cpu_period=${cpu_period//ms/}
+            cpu_quota=${cpu_quota//%/}
             local cfs_period_us=$((cpu_period * 1000))
             local cfs_quota_us=$((cfs_period_us * cpu_quota / 100))
+            log "INFO" "Setting CPU limits for $package - Period: $cfs_period_us us, Quota: $cfs_quota_us us"
             echo "$cfs_period_us" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
             echo "$cfs_quota_us" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set CPU quota for $package"
+        else
+            log "INFO" "Setting unlimited CPU for $package - Period: 100000 us, Quota: -1"
+            echo "100000" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
+            echo "-1" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set unlimited CPU quota for $package"
         fi
 
         # Create Memory cgroup slice
-        if [[ -n "$mem_limit" || -n "$swap_limit" ]]; then
-            local mem_slice_dir="$CGROUP_MEMORY/$package"
-            mkdir -p "$mem_slice_dir" || { log "ERROR" "Failed to create Memory slice for $package"; continue; }
-            if [[ -n "$mem_limit" ]]; then
-                local mem_bytes
-                mem_bytes=$(convert_memory_limit "$mem_limit")
-                echo "$mem_bytes" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set memory limit for $package"
-            fi
-            if [[ -n "$swap_limit" ]]; then
-                local swap_bytes
-                swap_bytes=$(convert_memory_limit "$swap_limit")
-                local total_bytes=$((mem_bytes + swap_bytes))
-                echo "$total_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
-            fi
+        local mem_slice_dir="$CGROUP_MEMORY/$package"
+        mkdir -p "$mem_slice_dir" || { log "ERROR" "Failed to create Memory slice for $package"; continue; }
+
+        if [[ "$mem_limit" != "unlimited" ]]; then
+            local mem_bytes
+            mem_bytes=$(convert_memory_limit "$mem_limit")
+            log "INFO" "Setting memory limit for $package - Memory: $mem_bytes bytes"
+            echo "$mem_bytes" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set memory limit for $package"
+        else
+            log "INFO" "Setting unlimited memory for $package - Memory: 9223372036854771712 bytes"
+            echo "9223372036854771712" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set unlimited memory for $package"
+        fi
+
+        if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
+            local swap_bytes
+            swap_bytes=$(convert_memory_limit "$swap_limit")
+            local total_bytes=$((mem_bytes + swap_bytes))
+            log "INFO" "Setting swap limit for $package - Total (Memory + Swap): $total_bytes bytes"
+            echo "$total_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
+        elif [[ "$mem_limit" != "unlimited" || "$swap_limit" != "unlimited" ]]; then
+            log "INFO" "Setting unlimited swap for $package - Total: 9223372036854771712 bytes"
+            echo "9223372036854771712" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
         fi
     done
     log "INFO" "Cgroup slices setup completed"
