@@ -33,10 +33,11 @@ To install the service and ensure it runs on startup, follow these steps:
 To monitor the service logs, open another terminal and run the following command:
 ```bash
 tail -f /var/log/process-monitor.log
+ ```
 
 ## Process Slice Manager - Package and Code Changes
 
 When you change the package, apply the changes by sending a `HUP` signal to the process manager:
 ```bash
 sudo kill -HUP $(cat /var/run/process-slice-manager.pid)
-
+ ```
