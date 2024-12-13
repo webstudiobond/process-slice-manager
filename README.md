@@ -49,3 +49,17 @@ sudo systemctl daemon-reload
 sudo systemctl restart process-slice-manager.service
  ```
 
+## Test
+
+1. Create a user in HestiaCP and create a web domain `domain1.com` with DNS settings. If you're on Windows, change the `hosts` file to point the domains to the Hestia server IP (`192.168.209.58`):
+
+    ```bash
+    192.168.209.58 domain1.com
+    192.168.209.58 domain2.com
+    ```
+
+2. In HestiaCP, use the Folder Manager to navigate to the `public_html` folder of `domain1.com`. Delete `index.html`, replace it with `index.php`, and paste the contents of `cpu_ram_stress.php` from this repository.
+
+3. You can now run the PHP test by setting the maximum amount of RAM and the percentage of CPU usage.
+
+4. Check `htop` to see if the user is properly limited according to the package settings.
