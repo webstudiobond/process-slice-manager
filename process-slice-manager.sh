@@ -100,9 +100,8 @@ setup_cgroup_slices() {
         if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
             local swap_bytes
             swap_bytes=$(convert_memory_limit "$swap_limit")
-            local total_bytes=$((mem_bytes + swap_bytes))
-            log "INFO" "Setting swap limit for $package - Total (Memory + Swap): $total_bytes bytes"
-            echo "$total_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
+            log "INFO" "Setting swap limit for $package - Memory Swap: $swap_bytes bytes"
+            echo "$swap_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
         elif [[ "$mem_limit" != "unlimited" || "$swap_limit" != "unlimited" ]]; then
             log "INFO" "Setting unlimited swap for $package - Total: $UNLIMITED_BYTES bytes"
             echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
