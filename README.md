@@ -35,9 +35,17 @@ To monitor the service logs, open another terminal and run the following command
 tail -f /var/log/process-monitor.log
  ```
 
-## Process Slice Manager - Package and Code Changes
+## Package change or update
 
-When you change the package, apply the changes by sending a `HUP` signal to the process manager:
+When you change the hestia package, apply the changes by sending a `HUP` signal to the process manager:
 ```bash
 sudo kill -HUP $(cat /var/run/process-slice-manager.pid)
  ```
+
+## Code Changes
+If you have changed the code, reload the systemd daemon and restart the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart process-slice-manager.service
+ ```
+
