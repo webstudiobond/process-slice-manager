@@ -1,0 +1,13 @@
+[Unit]
+Description=Process Slice Manager Service
+After=network.target hestia.service
+Requires=hestia.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/process-slice-manager.sh start
+ExecStop=/usr/local/bin/process-slice-manager.sh stop
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
