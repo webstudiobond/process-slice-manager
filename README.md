@@ -34,9 +34,7 @@ To monitor the service logs, open another terminal and run the following command
 ```bash
 tail -f /var/log/process-monitor.log
 
-# Process Slice Manager - Package and Code Changes
-
-## Package Changes
+## Process Slice Manager - Package and Code Changes
 
 When you change the package, apply the changes by sending a `HUP` signal to the process manager:
 ```bash
