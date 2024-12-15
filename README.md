@@ -32,7 +32,7 @@ To install the service and ensure it runs on startup, follow these steps:
 
 To monitor the service logs, open another terminal and run the following command:
 ```bash
-tail -f /var/log/process-monitor.log
+tail -f /var/log/process-slice-manager.log
  ```
 
 ## Package change or update
