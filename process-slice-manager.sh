@@ -140,10 +140,10 @@ monitor_resources() {
                 package=$(echo "${USER_DATA[$user]}" | jq -r '.PACKAGE')
                 [[ -n "$package" ]] || continue
 
-                echo "$pid" > "$CGROUP_CPU/$package/tasks" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to CPU cgroup"
+                #echo "$pid" > "$CGROUP_CPU/$package/tasks" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to CPU cgroup"
                 echo "$pid" > "$CGROUP_CPU/$package/cgroup.procs" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to CPU cgroup"
                 
-                echo "$pid" > "$CGROUP_MEMORY/$package/tasks" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to Memory cgroup"
+                #echo "$pid" > "$CGROUP_MEMORY/$package/tasks" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to Memory cgroup"
                 echo "$pid" > "$CGROUP_MEMORY/$package/cgroup.procs" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to Memory cgroup"
                 
                 known_processes["$pid"]="$user"
