@@ -10,7 +10,7 @@ class SystemLoadTest {
     private $cpuTarget;
     private $totalMemory;
 
-    public function __construct($cpuTarget = 90, $memoryPercentage = 60, $totalMemoryGB = 15) {
+    public function __construct($cpuTarget = 90, $memoryPercentage = 60, $totalMemoryGB = 1) {
         $this->cpuTarget = max(1, min(100, (int)$cpuTarget));
         $this->totalMemory = $totalMemoryGB * 1024 * 1024 * 1024; // Convert GB to bytes
         $this->targetMemory = $this->totalMemory * ($memoryPercentage / 100);
