@@ -188,7 +188,7 @@ if (isset($_POST['action'])) {
         </div>
         <div class="input-group">
             <label for="totalMemoryGB">Total Memory (GB):</label>
-            <input type="number" id="totalMemoryGB" min="1" max="128" value="15" step="0.5">
+            <input type="number" id="totalMemoryGB" min="1" max="128" value="1" step="0.5">
         </div>
     </div>
     <div>
