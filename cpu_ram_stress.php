@@ -123,7 +123,7 @@ if (isset($_POST['action'])) {
     if ($_POST['action'] === 'start') {
         $cpuTarget = isset($_POST['cpuTarget']) ? (int)$_POST['cpuTarget'] : 90;
         $memoryPercentage = isset($_POST['memoryPercentage']) ? (int)$_POST['memoryPercentage'] : 60;
-        $totalMemoryGB = isset($_POST['totalMemoryGB']) ? (float)$_POST['totalMemoryGB'] : 15;
+        $totalMemoryGB = isset($_POST['totalMemoryGB']) ? (float)$_POST['totalMemoryGB'] : 1;
         
         $test = new SystemLoadTest($cpuTarget, $memoryPercentage, $totalMemoryGB);
         $test->start();
