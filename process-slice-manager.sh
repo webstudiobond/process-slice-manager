@@ -3,10 +3,33 @@
 # Configuration
 PIDFILE="/var/run/process-slice-manager.pid"
 LOG_FILE="/var/log/process-slice-manager.log"
-CGROUP_CPU="/sys/fs/cgroup/cpu"
-CGROUP_MEMORY="/sys/fs/cgroup/memory"
+CGROUP_V1_CPU="/sys/fs/cgroup/cpu"
+CGROUP_V1_MEMORY="/sys/fs/cgroup/memory"
+CGROUP_V2_BASE="/sys/fs/cgroup"
 POLL_INTERVAL=2
 UNLIMITED_BYTES=$((1024 * 1024 * 1024 * 1024))
+CGROUP_VERSION=1
+
+# Check cgroup version and set paths
+check_cgroup_version() {
+    log "INFO" "Checking cgroup version"
+    if [ -f "/sys/fs/cgroup/cgroup.controllers" ]; then
+        CGROUP_VERSION=2
+        # Ensure required controllers are enabled
+        local available_controllers
+        available_controllers=$(cat /sys/fs/cgroup/cgroup.controllers)
+        if [[ ! "$available_controllers" =~ "cpu" ]] || [[ ! "$available_controllers" =~ "memory" ]]; then
+            log "ERROR" "Required controllers (cpu, memory) not available in cgroup v2"
+            exit 1
+        fi
+        # Enable controllers in root group
+        echo "+cpu +memory" > /sys/fs/cgroup/cgroup.subtree_control
+        log "INFO" "Cgroup v2 detected and configured - Using unified hierarchy"
+    else
+        CGROUP_VERSION=1
+        log "INFO" "Cgroup v1 detected - Using legacy hierarchy"
+    fi
+}
 
 # Declare associative arrays
 declare -A USER_DATA
@@ -43,6 +66,107 @@ convert_memory_limit() {
     esac
 }
 
+# Setup cgroup v2 slice
+setup_cgroup_v2_slice() {
+    local package="$1"
+    local cpu_quota="$2"
+    local cpu_period="$3"
+    local mem_limit="$4"
+    local swap_limit="$5"
+
+    # Create and setup the package directory
+    local package_dir="$CGROUP_V2_BASE/$package"
+    mkdir -p "$package_dir" || { log "ERROR" "Failed to create package directory for $package"; return 1; }
+
+    # Enable controllers in package directory
+    echo "+cpu +cpuset +memory" > "$package_dir/cgroup.subtree_control" || \
+        log "ERROR" "Failed to enable controllers in $package"
+
+    # Create and setup the tasks directory
+    local tasks_dir="$package_dir/tasks"
+    mkdir -p "$tasks_dir" || { log "ERROR" "Failed to create tasks directory for $package"; return 1; }
+
+    # Set CPU limits in the tasks directory
+    if [[ "$cpu_quota" != "unlimited" && "$cpu_period" != "unlimited" ]]; then
+        cpu_period=${cpu_period//ms/}
+        cpu_quota=${cpu_quota//%/}
+        local period_us=$((cpu_period * 1000))
+        local quota_us=$((period_us * cpu_quota / 100))
+        echo "$quota_us $period_us" > "$tasks_dir/cpu.max" || \
+            log "ERROR" "Failed to set CPU limits for $package"
+    else
+        echo "max 100000" > "$tasks_dir/cpu.max" || \
+            log "ERROR" "Failed to set unlimited CPU for $package"
+    fi
+
+    # Set Memory limits
+    if [[ "$mem_limit" != "unlimited" ]]; then
+        local mem_bytes
+        mem_bytes=$(convert_memory_limit "$mem_limit")
+        echo "$mem_bytes" > "$tasks_dir/memory.max" || \
+            log "ERROR" "Failed to set memory limit for $package"
+    else
+        echo "max" > "$tasks_dir/memory.max" || \
+            log "ERROR" "Failed to set unlimited memory for $package"
+    fi
+
+    # Set Swap limits
+    if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
+        local swap_bytes
+        swap_bytes=$(convert_memory_limit "$swap_limit")
+        echo "$swap_bytes" > "$tasks_dir/memory.swap.max" || \
+            log "ERROR" "Failed to set swap limit for $package"
+    else
+        echo "max" > "$tasks_dir/memory.swap.max" || \
+            log "ERROR" "Failed to set unlimited swap for $package"
+    fi
+}
+
+# Setup cgroup v1 slice
+setup_cgroup_v1_slice() {
+    local package="$1"
+    local cpu_quota="$2"
+    local cpu_period="$3"
+    local mem_limit="$4"
+    local swap_limit="$5"
+
+    # Create CPU cgroup slice
+    local cpu_slice_dir="$CGROUP_V1_CPU/$package"
+    mkdir -p "$cpu_slice_dir" || { log "ERROR" "Failed to create CPU slice for $package"; return 1; }
+
+    if [[ "$cpu_quota" != "unlimited" && "$cpu_period" != "unlimited" ]]; then
+        cpu_period=${cpu_period//ms/}
+        cpu_quota=${cpu_quota//%/}
+        local cfs_period_us=$((cpu_period * 1000))
+        local cfs_quota_us=$((cfs_period_us * cpu_quota / 100))
+        echo "$cfs_period_us" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
+        echo "$cfs_quota_us" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set CPU quota for $package"
+    else
+        echo "100000" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
+        echo "-1" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set unlimited CPU quota for $package"
+    fi
+
+    # Create Memory cgroup slice
+    local mem_slice_dir="$CGROUP_V1_MEMORY/$package"
+    mkdir -p "$mem_slice_dir" || { log "ERROR" "Failed to create Memory slice for $package"; return 1; }
+
+    if [[ "$mem_limit" != "unlimited" ]]; then
+        local mem_bytes
+        mem_bytes=$(convert_memory_limit "$mem_limit")
+        echo "$mem_bytes" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set memory limit for $package"
+    else
+        echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set unlimited memory for $package"
+    fi
+
+    if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
+        local swap_bytes
+        swap_bytes=$(convert_memory_limit "$swap_limit")
+        echo "$swap_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
+    elif [[ "$mem_limit" != "unlimited" || "$swap_limit" != "unlimited" ]]; then
+        echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
+    fi
+}
+
 # Setup cgroup slices
 setup_cgroup_slices() {
     log "INFO" "Setting up cgroup slices for packages"
@@ -65,46 +189,10 @@ setup_cgroup_slices() {
 
         PACKAGE_DATA["$package"]="$cpu_quota:$cpu_period:$mem_limit:$swap_limit"
 
-        # Create CPU cgroup slice
-        local cpu_slice_dir="$CGROUP_CPU/$package"
-        mkdir -p "$cpu_slice_dir" || { log "ERROR" "Failed to create CPU slice for $package"; continue; }
-        
-        if [[ "$cpu_quota" != "unlimited" && "$cpu_period" != "unlimited" ]]; then
-            cpu_period=${cpu_period//ms/}
-            cpu_quota=${cpu_quota//%/}
-            local cfs_period_us=$((cpu_period * 1000))
-            local cfs_quota_us=$((cfs_period_us * cpu_quota / 100))
-            log "INFO" "Setting CPU limits for $package - Period: $cfs_period_us us, Quota: $cfs_quota_us us"
-            echo "$cfs_period_us" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
-            echo "$cfs_quota_us" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set CPU quota for $package"
+        if [ "$CGROUP_VERSION" -eq 2 ]; then
+            setup_cgroup_v2_slice "$package" "$cpu_quota" "$cpu_period" "$mem_limit" "$swap_limit"
         else
-            log "INFO" "Setting unlimited CPU for $package - Period: 100000 us, Quota: -1"
-            echo "100000" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
-            echo "-1" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set unlimited CPU quota for $package"
-        fi
-
-        # Create Memory cgroup slice
-        local mem_slice_dir="$CGROUP_MEMORY/$package"
-        mkdir -p "$mem_slice_dir" || { log "ERROR" "Failed to create Memory slice for $package"; continue; }
-
-        if [[ "$mem_limit" != "unlimited" ]]; then
-            local mem_bytes
-            mem_bytes=$(convert_memory_limit "$mem_limit")
-            log "INFO" "Setting memory limit for $package - Memory: $mem_bytes bytes"
-            echo "$mem_bytes" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set memory limit for $package"
-        else
-            log "INFO" "Setting unlimited memory for $package - Memory: $UNLIMITED_BYTES bytes"
-            echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set unlimited memory for $package"
-        fi
-
-        if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
-            local swap_bytes
-            swap_bytes=$(convert_memory_limit "$swap_limit")
-            log "INFO" "Setting swap limit for $package - Memory Swap: $swap_bytes bytes"
-            echo "$swap_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
-        elif [[ "$mem_limit" != "unlimited" || "$swap_limit" != "unlimited" ]]; then
-            log "INFO" "Setting unlimited swap for $package - Total: $UNLIMITED_BYTES bytes"
-            echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
+            setup_cgroup_v1_slice "$package" "$cpu_quota" "$cpu_period" "$mem_limit" "$swap_limit"
         fi
     done
     log "INFO" "Cgroup slices setup completed"
@@ -140,12 +228,16 @@ monitor_resources() {
                 package=$(echo "${USER_DATA[$user]}" | jq -r '.PACKAGE')
                 [[ -n "$package" ]] || continue
 
-                #echo "$pid" > "$CGROUP_CPU/$package/tasks" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to CPU cgroup"
-                echo "$pid" > "$CGROUP_CPU/$package/cgroup.procs" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to CPU cgroup"
-                
-                #echo "$pid" > "$CGROUP_MEMORY/$package/tasks" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to Memory cgroup"
-                echo "$pid" > "$CGROUP_MEMORY/$package/cgroup.procs" 2>/dev/null || log "ERROR" "Failed to assign PID $pid to Memory cgroup"
-                
+                if [ "$CGROUP_VERSION" -eq 2 ]; then
+                    echo "$pid" > "$CGROUP_V2_BASE/$package/tasks/cgroup.procs" 2>/dev/null || \
+                        log "ERROR" "Failed to assign PID $pid to cgroup v2"
+                else
+                    echo "$pid" > "$CGROUP_V1_CPU/$package/cgroup.procs" 2>/dev/null || \
+                        log "ERROR" "Failed to assign PID $pid to CPU cgroup"
+                    echo "$pid" > "$CGROUP_V1_MEMORY/$package/cgroup.procs" 2>/dev/null || \
+                        log "ERROR" "Failed to assign PID $pid to Memory cgroup"
+                fi
+
                 known_processes["$pid"]="$user"
                 log "INFO" "Assigned PID $pid ($comm) of user $user to package $package"
             fi
@@ -175,6 +267,7 @@ case "$1" in
         echo $$ > "$PIDFILE"
         trap cleanup SIGINT SIGTERM
         trap 'load_user_data' SIGHUP
+        check_cgroup_version
         load_user_data
         monitor_resources
         ;;
