@@ -93,9 +93,11 @@ setup_cgroup_v2_slice() {
         cpu_quota=${cpu_quota//%/}
         local period_us=$((cpu_period * 1000))
         local quota_us=$((period_us * cpu_quota / 100))
+        log "INFO" "Set CPU quota: ${quota_us}us period: ${period_us}us for $package"
         echo "$quota_us $period_us" > "$tasks_dir/cpu.max" || \
             log "ERROR" "Failed to set CPU limits for $package"
     else
+        log "INFO" "Set unlimited CPU for $package"
         echo "max 100000" > "$tasks_dir/cpu.max" || \
             log "ERROR" "Failed to set unlimited CPU for $package"
     fi
@@ -104,9 +106,11 @@ setup_cgroup_v2_slice() {
     if [[ "$mem_limit" != "unlimited" ]]; then
         local mem_bytes
         mem_bytes=$(convert_memory_limit "$mem_limit")
+        log "INFO" "Set memory limit: $mem_bytes bytes for $package"
         echo "$mem_bytes" > "$tasks_dir/memory.max" || \
             log "ERROR" "Failed to set memory limit for $package"
     else
+        log "INFO" "Set unlimited memory for $package"
         echo "max" > "$tasks_dir/memory.max" || \
             log "ERROR" "Failed to set unlimited memory for $package"
     fi
@@ -115,9 +119,11 @@ setup_cgroup_v2_slice() {
     if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
         local swap_bytes
         swap_bytes=$(convert_memory_limit "$swap_limit")
+        log "INFO" "Set swap limit: $swap_bytes bytes for $package"
         echo "$swap_bytes" > "$tasks_dir/memory.swap.max" || \
             log "ERROR" "Failed to set swap limit for $package"
     else
+        log "INFO" "Set unlimited swap for $package"
         echo "max" > "$tasks_dir/memory.swap.max" || \
             log "ERROR" "Failed to set unlimited swap for $package"
     fi
@@ -140,9 +146,11 @@ setup_cgroup_v1_slice() {
         cpu_quota=${cpu_quota//%/}
         local cfs_period_us=$((cpu_period * 1000))
         local cfs_quota_us=$((cfs_period_us * cpu_quota / 100))
+        log "INFO" "Set CPU quota: ${cfs_quota_us}us period: ${cfs_period_us}us for $package"
         echo "$cfs_period_us" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
         echo "$cfs_quota_us" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set CPU quota for $package"
     else
+        log "INFO" "Set unlimited CPU for $package"
         echo "100000" > "$cpu_slice_dir/cpu.cfs_period_us" || log "ERROR" "Failed to set CPU period for $package"
         echo "-1" > "$cpu_slice_dir/cpu.cfs_quota_us" || log "ERROR" "Failed to set unlimited CPU quota for $package"
     fi
@@ -154,16 +162,20 @@ setup_cgroup_v1_slice() {
     if [[ "$mem_limit" != "unlimited" ]]; then
         local mem_bytes
         mem_bytes=$(convert_memory_limit "$mem_limit")
+        log "INFO" "Set memory limit: $mem_bytes bytes for $package"
         echo "$mem_bytes" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set memory limit for $package"
     else
+        log "INFO" "Set unlimited memory for $package"
         echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.limit_in_bytes" || log "ERROR" "Failed to set unlimited memory for $package"
     fi
 
     if [[ "$swap_limit" != "unlimited" && "$mem_limit" != "unlimited" ]]; then
         local swap_bytes
         swap_bytes=$(convert_memory_limit "$swap_limit")
+        log "INFO" "Set swap limit: $swap_bytes bytes for $package"
         echo "$swap_bytes" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set swap limit for $package"
     elif [[ "$mem_limit" != "unlimited" || "$swap_limit" != "unlimited" ]]; then
+        log "INFO" "Set unlimited swap for $package"
         echo "$UNLIMITED_BYTES" > "$mem_slice_dir/memory.memsw.limit_in_bytes" || log "ERROR" "Failed to set unlimited swap for $package"
     fi
 }
