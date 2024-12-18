@@ -17,7 +17,7 @@ check_cgroup_version() {
         CGROUP_VERSION=2
         
         # Enable controllers in root group
-        echo "+cpu +cpuset +memory" > /sys/fs/cgroup/cgroup.subtree_control || log "ERROR" "Failed to enable controllers in cgroup v2"
+        echo "+cpuset +cpu +io +memory" > /sys/fs/cgroup/cgroup.subtree_control || log "ERROR" "Failed to enable controllers in cgroup v2"
         
         local available_controllers
         available_controllers=$(cat /sys/fs/cgroup/cgroup.controllers)
@@ -80,7 +80,7 @@ setup_cgroup_v2_slice() {
     mkdir -p "$package_dir" || { log "ERROR" "Failed to create package directory for $package"; return 1; }
 
     # Enable controllers in package directory
-    echo "+cpu +cpuset +memory" > "$package_dir/cgroup.subtree_control" || \
+    echo "+cpuset +cpu +io +memory" > "$package_dir/cgroup.subtree_control" || \
         log "ERROR" "Failed to enable controllers in $package"
 
     # Create and setup the tasks directory
