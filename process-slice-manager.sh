@@ -15,15 +15,16 @@ check_cgroup_version() {
     log "INFO" "Checking cgroup version"
     if [ -f "/sys/fs/cgroup/cgroup.controllers" ]; then
         CGROUP_VERSION=2
-        # Ensure required controllers are enabled
+        
+        # Enable controllers in root group
+        echo "+cpu +cpuset +memory" > /sys/fs/cgroup/cgroup.subtree_control || log "ERROR" "Failed to enable controllers in cgroup v2"
+        
         local available_controllers
         available_controllers=$(cat /sys/fs/cgroup/cgroup.controllers)
         if [[ ! "$available_controllers" =~ "cpu" ]] || [[ ! "$available_controllers" =~ "memory" ]]; then
             log "ERROR" "Required controllers (cpu, memory) not available in cgroup v2"
             exit 1
         fi
-        # Enable controllers in root group
-        echo "+cpu +memory" > /sys/fs/cgroup/cgroup.subtree_control
         log "INFO" "Cgroup v2 detected and configured - Using unified hierarchy"
     else
         CGROUP_VERSION=1
