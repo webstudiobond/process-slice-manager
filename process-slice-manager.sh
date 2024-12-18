@@ -104,7 +104,12 @@ setup_cgroup_v2_slice() {
             # Default to 1s (1000000 µs) if no unit specified
             period_us=1000000
         fi
-        
+
+        # maximum period allowed is 1 second (1000000 µs)
+        if (( period_us > 1000000 )); then
+            period_us=1000000
+        fi
+
         cpu_quota=${cpu_quota//%/}
         local quota_us=$((cpu_quota * 1000))
 
