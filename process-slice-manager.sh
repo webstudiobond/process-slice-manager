@@ -89,27 +89,25 @@ setup_cgroup_v2_slice() {
 
     # Set CPU limits in the tasks directory
     if [[ "$cpu_quota" != "unlimited" && "$cpu_period" != "unlimited" ]]; then
-        # Convert period to microseconds based on unit
+       # Convert period to microseconds based on unit
         local period_us
         if [[ "$cpu_period" =~ ms$ ]]; then
             # Convert ms to microseconds
             local ms=${cpu_period//ms/}
-            # If period is less than 1000ms, use 1s (1000000us)
-            if (( ms < 1000 )); then
-                period_us=1000000
-            else
-                period_us=$((ms * 1000))
-            fi
+            period_us=$((ms * 1000))
+            
         elif [[ "$cpu_period" =~ s$ ]]; then
             # Convert s to microseconds
             local s=${cpu_period//s/}
             period_us=$((s * 1000000))
         else
-            # Default to 1s if no unit specified
+            # Default to 1s (1000000 µs) if no unit specified
             period_us=1000000
         fi
+        
         cpu_quota=${cpu_quota//%/}
-        local quota_us=$((period_us * cpu_quota / 100))
+        local quota_us=$((cpu_quota * 1000))
+
         log "INFO" "Set CPU quota: ${quota_us}us period: ${period_us}us for $package"
         echo "$quota_us $period_us" > "$tasks_dir/cpu.max" || \
             log "ERROR" "Failed to set CPU limits for $package"
