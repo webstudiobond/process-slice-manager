@@ -110,6 +110,11 @@ setup_cgroup_v2_slice() {
             period_us=1000000
         fi
 
+        # minimum period allowed is 100ms (100000 µs)
+        if (( period_us < 100000 )); then
+            period_us=100000
+        fi
+
         cpu_quota=${cpu_quota//%/}
         local quota_us=$((cpu_quota * 1000))
 
