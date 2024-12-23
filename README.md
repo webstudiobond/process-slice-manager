@@ -6,12 +6,12 @@ This repository contains a service for managing process slices and monitoring th
 
 To install the service and ensure it runs on startup, follow these steps:
 
-1. Create the systemd service file:
+1. Create the systemd [service](https://raw.githubusercontent.com/webstudiobond/process-slice-manager/refs/heads/main/process-slice-manager.service) file:
     ```bash
     sudo nano /etc/systemd/system/process-slice-manager.service
     ```
 
-2. Create the script that will be used by the service & make the script executable:
+2. Create the [script](https://raw.githubusercontent.com/webstudiobond/process-slice-manager/refs/heads/main/process-slice-manager.sh) that will be used by the service & make the script executable:
     ```bash
     sudo nano /usr/local/bin/process-slice-manager.sh && \
     sudo chmod +x /usr/local/bin/process-slice-manager.sh
@@ -59,7 +59,7 @@ sudo systemctl restart process-slice-manager.service
     192.168.209.58 domain2.com
     ```
 
-2. In HestiaCP, use the Folder Manager to navigate to the `public_html` folder of `domain1.com`. Delete `index.html`, replace it with `index.php`, and paste the contents of `cpu_ram_stress.php` from this repository.
+2. In HestiaCP, use the Folder Manager to navigate to the `public_html` folder of `domain1.com`. Delete `index.html`, replace it with `index.php`, and paste the contents of [cpu_ram_stress.php](https://raw.githubusercontent.com/webstudiobond/process-slice-manager/refs/heads/main/cpu_ram_stress.php) from this repository.
 
 3. You can now run the PHP test by setting the maximum amount of RAM and the percentage of CPU usage.
 
