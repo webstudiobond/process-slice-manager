@@ -46,7 +46,7 @@ sudo kill -HUP $(cat /var/run/process-slice-manager.pid)
 ## Code Changes
 If you have changed the code, reload the systemd daemon and restart the service:
 ```bash
-sudo systemctl daemon-reload
+sudo systemctl daemon-reload && \
 sudo systemctl restart process-slice-manager.service
  ```
 
