@@ -11,22 +11,23 @@ To install the service and ensure it runs on startup, follow these steps:
     sudo nano /etc/systemd/system/process-slice-manager.service
     ```
 
-2. Create the script that will be used by the service:
+2. Create the script that will be used by the service & make the script executable:
     ```bash
-    sudo nano /usr/local/bin/process-slice-manager.sh
-    ```
-
-3. Make the script executable:
-    ```bash
+    sudo nano /usr/local/bin/process-slice-manager.sh && \
     sudo chmod +x /usr/local/bin/process-slice-manager.sh
     ```
-
-4. Reload systemd to recognize the new service and enable it to start at boot:
+3. Reload systemd to recognize the new service
+   ```bash
+   sudo systemctl daemon-reload
+   ```
+4. Enable service to start it at boot:
     ```bash
-    sudo systemctl daemon-reload
     sudo systemctl enable process-slice-manager.service
-    sudo systemctl start process-slice-manager.service
     ```
+5. Start service:
+   ```bash
+   sudo systemctl start process-slice-manager.service
+   ```
 
 ## Monitoring
 
