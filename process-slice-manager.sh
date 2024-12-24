@@ -3,6 +3,7 @@
 # Configuration
 PIDFILE="/var/run/process-slice-manager.pid"
 LOG_FILE="/var/log/process-slice-manager.log"
+LOG_MAX_SIZE=$((5 * 1024 * 1024))  # 5MB in bytes
 CGROUP_V1_CPU="/sys/fs/cgroup/cpu"
 CGROUP_V1_MEMORY="/sys/fs/cgroup/memory"
 CGROUP_V2_BASE="/sys/fs/cgroup"
@@ -45,10 +46,37 @@ for cmd in "${REQUIRED_CMDS[@]}"; do
     fi
 done
 
+# Check and rotate log file if needed
+check_log_rotation() {
+    if [[ ! -f "$LOG_FILE" ]]; then
+        touch "$LOG_FILE"
+        chmod 640 "$LOG_FILE"
+        return
+    fi
+
+    local rotate=0
+    
+    # Check size
+    local size
+    size=$(stat -c%s "$LOG_FILE" 2>/dev/null)
+    if [[ $size -gt $LOG_MAX_SIZE ]]; then
+        rotate=1
+    fi
+
+    # Rotate if needed
+    if [[ $rotate -eq 1 ]]; then
+        true > "$LOG_FILE"
+        touch "$LOG_FILE"  # Updating file creation time
+        chmod 640 "$LOG_FILE"
+        log "INFO" "Log file rotated due to size"
+    fi
+}
+
 # Logging function with levels
 log() {
     local level="$1"
     local message="$2"
+    check_log_rotation
     echo "$(date '+%Y-%m-%d %H:%M:%S') - [$level] $message" >> "$LOG_FILE"
 }
 
