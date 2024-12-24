@@ -38,7 +38,7 @@ declare -A USER_DATA
 declare -A PACKAGE_DATA
 
 # Ensure dependencies are available
-REQUIRED_CMDS=("jq" "ps" "nproc")
+REQUIRED_CMDS=("jq" "ps")
 for cmd in "${REQUIRED_CMDS[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "Error: Required command '$cmd' is not installed." >&2
@@ -117,10 +117,6 @@ setup_cgroup_v2_slice() {
 
     # Set CPU limits in the tasks directory
     if [[ "$cpu_quota" != "unlimited" && "$cpu_period" != "unlimited" ]]; then
-        # Get number of CPU cores
-        local cpu_cores
-        cpu_cores=$(nproc)
-        log "INFO" "Detected $cpu_cores CPU cores"
 
         # Convert period to microseconds based on unit
         local period_us
@@ -152,20 +148,18 @@ setup_cgroup_v2_slice() {
 
         # Calculate quota for all cores
         cpu_quota=${cpu_quota//%/}
-        local single_core_quota=$((period_us * cpu_quota / 100))
-        local total_quota=$((single_core_quota * cpu_cores))
+        local quota_us=$((period_us * cpu_quota / 100))
 
         # Validate minimum quota
-        if ((total_quota < 1000)); then
+        if ((quota_us < 1000)); then
             log "WARN" "CPU quota adjusted to minimum value (1000us)"
-            total_quota=1000
+            quota_us=1000
         fi
 
+        log "INFO" "Set CPU quota: ${quota_us}us (${cpu_quota}%) for $package"
         log "INFO" "Set period: ${period_us}us for $package"
-        log "INFO" "Set CPU quota per core: ${single_core_quota}us (${cpu_quota}%) for $package"
-        log "INFO" "Set total CPU quota for $cpu_cores cores: ${total_quota}us for $package"
 
-        echo "$total_quota $period_us" > "$tasks_dir/cpu.max" || \
+        echo "$quota_us $period_us" > "$tasks_dir/cpu.max" || \
             log "ERROR" "Failed to set CPU limits for $package"
     else
         log "INFO" "Set unlimited CPU for $package"
